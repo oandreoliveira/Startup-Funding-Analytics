@@ -1,0 +1,15 @@
+[theme.light.sidebar]
+backgroundColor = "#0B1422"
+secondaryBackgroundColor = "#202E43"
+textColor = "#F8FAFC"
+primaryColor = "#0E7490"
+borderColor = "#3A4B63"
+showWidgetBorder = true
+
+[theme.dark.sidebar]
+backgroundColor = "#0B1422"
+secondaryBackgroundColor = "#202E43"
+textColor = "#F8FAFC"
+primaryColor = "#0E7490"
+borderColor = "#3A4B63"
+showWidgetBorder = true
