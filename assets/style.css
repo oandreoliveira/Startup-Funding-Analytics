@@ -457,3 +457,38 @@ body div[data-baseweb="popover"] [role="option"][aria-selected="true"] {
     background: #24364F !important;
     color: #FFFFFF !important;
 }
+section[data-testid="stSidebar"] img {
+    width: 100% !important;
+    max-width: 290px !important;
+}
+
+/* ==========================================================
+   ABAS PRINCIPAIS — STREAMLIT 1.63
+   ========================================================== */
+
+.stTabs [data-testid="stTab"] {
+    color: #BAE6FD !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.stTabs [data-testid="stTab"] p {
+    color: #BAE6FD !important;
+    -webkit-text-fill-color: #BAE6FD !important;
+}
+
+.stTabs [data-testid="stTab"]:hover p {
+    color: #E0F2FE !important;
+    -webkit-text-fill-color: #E0F2FE !important;
+}
+
+.stTabs [data-testid="stTab"][aria-selected="true"] p {
+    color: #E0F2FE !important;
+    -webkit-text-fill-color: #E0F2FE !important;
+}
+
+/* Indicador da aba selecionada */
+.stTabs [data-testid="stTab"] .react-aria-SelectionIndicator {
+    background-color: #1E8AA8 !important;
+}

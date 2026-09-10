@@ -1,26 +1,45 @@
+import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
+def empty_figure():
+    fig = go.Figure()
 
-def create_funding_map(
-    df_filtrado,
-    map_scale,
-):
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+
+    fig.add_annotation(
+        text="Nenhum dado disponível para os filtros selecionados",
+        x=0.5,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        font=dict(
+            size=14,
+            color="#A8B3C7",
+        ),
+    )
+
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+    )
+
+    return fig
+
+def create_funding_map(df_filtrado, map_scale):
+    if df_filtrado.empty:
+        return empty_figure()
     funding_by_country = (
         df_filtrado
-        .groupby("Country")[
-            "Funding_Amount_USD"
-        ]
+        .groupby("Country")["Funding_Amount_USD"]
         .sum()
         .reset_index()
     )
 
-    funding_by_country[
-        "Funding_Billions"
-    ] = (
-        funding_by_country[
-            "Funding_Amount_USD"
-        ]
-        / 1e9
+    funding_by_country["Funding_Billions"] = (
+        funding_by_country["Funding_Amount_USD"] / 1e9
     )
 
     country_to_iso = {
@@ -70,15 +89,10 @@ def create_funding_map(
     }
 
     funding_by_country["ISO"] = (
-        funding_by_country[
-            "Country"
-        ].map(country_to_iso)
+        funding_by_country["Country"].map(country_to_iso)
     )
 
-    funding_map = (
-        funding_by_country
-        .dropna(subset=["ISO"])
-    )
+    funding_map = funding_by_country.dropna(subset=["ISO"])
 
     fig = px.choropleth(
         funding_map,
@@ -86,9 +100,7 @@ def create_funding_map(
         color="Funding_Billions",
         hover_name="Country",
         color_continuous_scale=map_scale,
-        labels={
-            "Funding_Billions": "US$ Bilhões"
-        },
+        labels={"Funding_Billions": "US$ Bilhões"},
         projection="natural earth",
     )
 
@@ -99,18 +111,13 @@ def create_industry_evolution_chart(
     df_filtrado,
     qualitative_palette,
 ):
+    if df_filtrado.empty:
+        return empty_figure()
     evolution = (
         df_filtrado
-        .groupby(
-            [
-                "Year",
-                "Industry",
-            ]
-        )
+        .groupby(["Year", "Industry"])
         .size()
-        .reset_index(
-            name="Count"
-        )
+        .reset_index(name="Count")
     )
 
     fig = px.line(
@@ -129,31 +136,1383 @@ def create_valuation_boxplot(
     df_filtrado,
     qualitative_palette,
 ):
+    if df_filtrado.empty:
+        return empty_figure()
     fig = px.box(
         df_filtrado,
         x="Industry",
         y="Valuation_USD",
-
         labels={
             "Valuation_USD": "Valuation (USD)",
             "Industry": "",
         },
-
         color="Industry",
-
         color_discrete_sequence=qualitative_palette,
     )
 
     return fig
-    
-def create_ranking_chart(
-    ranking,
-):
+
+
+def create_ranking_chart(ranking):
     fig = px.bar(
         ranking,
         x="Metric",
         y="Industry",
         orientation="h",
     )
+
+    return fig
+
+
+def create_country_investment_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    ranking = (
+        df_filtrado
+        .groupby("Country")["Funding_Amount_USD"]
+        .sum()
+        .reset_index()
+        .sort_values(
+            "Funding_Amount_USD",
+            ascending=False,
+        )
+        .head(10)
+    )
+
+    ranking["Funding_Billions"] = (
+        ranking["Funding_Amount_USD"] / 1e9
+    )
+
+    ranking = ranking.sort_values(
+        "Funding_Billions",
+        ascending=True,
+    )
+
+    fig = px.bar(
+        ranking,
+        x="Funding_Billions",
+        y="Country",
+        orientation="h",
+        labels={
+            "Funding_Billions": "Investimento (US$ Bilhões)",
+            "Country": "",
+        },
+        color="Funding_Billions",
+        color_continuous_scale=[
+            "#164E63",
+            "#155E75",
+            "#0E7490",
+            "#0891B2",
+        ],
+    )
+
+    fig.update_coloraxes(
+        showscale=False
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{y}</b>"
+            "<br>US$ %{x:.1f} bilhões"
+            "<extra></extra>"
+        )
+    )
+
+    fig.update_xaxes(
+        tickformat=".1f"
+    )
+
+    return fig
+
+
+def create_average_investment_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    country_analysis = (
+        df_filtrado
+        .groupby("Country")
+        .agg(
+            Startups=("Country", "size"),
+            Investment_USD=("Funding_Amount_USD", "sum"),
+        )
+        .reset_index()
+    )
+
+    country_analysis["Average_Investment_USD"] = (
+        country_analysis["Investment_USD"]
+        / country_analysis["Startups"]
+    )
+
+    ranking = (
+        country_analysis
+        .sort_values(
+            "Average_Investment_USD",
+            ascending=False,
+        )
+        .head(10)
+    )
+
+    ranking["Average_Investment_Millions"] = (
+        ranking["Average_Investment_USD"] / 1e6
+    )
+
+    ranking = ranking.sort_values(
+        "Average_Investment_Millions",
+        ascending=True,
+    )
+
+    fig = px.bar(
+        ranking,
+        x="Average_Investment_Millions",
+        y="Country",
+        orientation="h",
+        labels={
+            "Average_Investment_Millions":
+                "Investimento Médio por Startup (US$ Milhões)",
+            "Country": "",
+        },
+        color="Average_Investment_Millions",
+        color_continuous_scale=[
+            "#164E63",
+            "#155E75",
+            "#0E7490",
+            "#0891B2",
+            "#06B6D4",
+            "#22D3EE",
+        ],
+    )
+
+    fig.update_coloraxes(
+        showscale=False
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{y}</b>"
+            "<br>US$ %{x:.1f} milhões por startup"
+            "<extra></extra>"
+        )
+    )
+
+    return fig
+
+
+def create_country_scatter_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    country_analysis = (
+        df_filtrado
+        .groupby("Country")
+        .agg(
+            Startups=("Country", "size"),
+            Investment_USD=("Funding_Amount_USD", "sum"),
+        )
+        .reset_index()
+    )
+
+    country_analysis["Investment_Billions"] = (
+        country_analysis["Investment_USD"] / 1e9
+    )
+
+    fig = px.scatter(
+        country_analysis,
+        x="Startups",
+        y="Investment_Billions",
+        size="Investment_Billions",
+        hover_name="Country",
+        labels={
+            "Startups": "Número de Startups",
+            "Investment_Billions":
+                "Investimento (US$ Bilhões)",
+        },
+    )
+
+    return fig
+
+
+def create_country_industry_heatmap(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    country_industry = pd.crosstab(
+        df_filtrado["Country"],
+        df_filtrado["Industry"],
+    )
+
+    fig = px.imshow(
+        country_industry,
+        text_auto="d",
+        aspect="auto",
+        color_continuous_scale=[
+            "#172554",
+            "#1E3A8A",
+            "#1D4ED8",
+            "#0284C7",
+            "#22D3EE",
+        ],
+        labels={
+            "x": "Indústria",
+            "y": "País",
+            "color": "Startups",
+        },
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            "<b>País:</b> %{y}"
+            "<br><b>Indústria:</b> %{x}"
+            "<br><b>Startups:</b> %{z}"
+            "<extra></extra>"
+        )
+    )
+
+    fig.update_xaxes(
+        tickangle=-35,
+    )
+
+    return fig
+
+
+def create_investment_evolution_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    evolution = (
+        df_filtrado
+        .groupby("Year")["Funding_Amount_USD"]
+        .sum()
+        .reset_index()
+        .sort_values("Year")
+    )
+
+    evolution["Funding_Billions"] = (
+        evolution["Funding_Amount_USD"] / 1e9
+    )
+
+    fig = px.line(
+        evolution,
+        x="Year",
+        y="Funding_Billions",
+        markers=True,
+        labels={
+            "Year": "Ano",
+            "Funding_Billions":
+                "Investimento (US$ Bilhões)",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#06B6D4",
+            width=3,
+        ),
+        marker=dict(
+            size=7,
+            color="#22D3EE",
+        ),
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>US$ %{y:.1f} bilhões"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_average_ticket_by_round_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    round_order = [
+        "Pre-Seed",
+        "Seed",
+        "Series A",
+        "Series B",
+        "Series C",
+        "Series D",
+        "Series E",
+        "Series F",
+        "Series G",
+    ]
+
+    ticket = (
+        df_filtrado
+        .groupby("Funding_Round")["Funding_Amount_USD"]
+        .mean()
+        .reset_index()
+    )
+
+    ticket["Round_Order"] = (
+        ticket["Funding_Round"]
+        .map({
+            round_name: i
+            for i, round_name in enumerate(round_order)
+        })
+    )
+
+    ticket = (
+        ticket
+        .dropna(subset=["Round_Order"])
+        .sort_values("Round_Order")
+    )
+
+    ticket["Ticket_Millions"] = (
+        ticket["Funding_Amount_USD"] / 1e6
+    )
+
+    fig = px.line(
+        ticket,
+        x="Funding_Round",
+        y="Ticket_Millions",
+        markers=True,
+        labels={
+            "Funding_Round": "Rodada",
+            "Ticket_Millions":
+                "Ticket médio (US$ Milhões)",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#3B82F6",
+            width=3,
+        ),
+        marker=dict(
+            size=8,
+            color="#22D3EE",
+        ),
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>US$ %{y:.1f} milhões"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_rounds_evolution_chart(df_filtrado):
+    if df_filtrado.empty:
+        return empty_figure()
+    evolution = (
+        df_filtrado
+        .groupby("Year")
+        .size()
+        .reset_index(name="Rounds")
+        .sort_values("Year")
+    )
+
+    fig = px.line(
+        evolution,
+        x="Year",
+        y="Rounds",
+        markers=True,
+        labels={
+            "Year": "Ano",
+            "Rounds": "Número de rodadas",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#8B5CF6",
+            width=3,
+        ),
+        marker=dict(
+            size=7,
+            color="#A78BFA",
+        ),
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>%{y:,} rodadas"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_funding_by_round_evolution_chart(
+    df_filtrado,
+    qualitative_palette,
+):
+    if df_filtrado.empty:
+        return empty_figure()
+    evolution = (
+        df_filtrado
+        .groupby(
+            ["Year", "Funding_Round"]
+        )["Funding_Amount_USD"]
+        .sum()
+        .reset_index()
+    )
+
+    evolution["Funding_Billions"] = (
+        evolution["Funding_Amount_USD"] / 1e9
+    )
+
+    round_order = [
+        "Pre-Seed",
+        "Seed",
+        "Series A",
+        "Series B",
+        "Series C",
+        "Series D",
+        "Series E",
+        "Series F",
+        "Series G",
+    ]
+
+    evolution["Round_Order"] = (
+        evolution["Funding_Round"]
+        .map({
+            round_name: i
+            for i, round_name in enumerate(round_order)
+        })
+    )
+
+    evolution = (
+        evolution
+        .dropna(subset=["Round_Order"])
+        .sort_values(
+            ["Year", "Round_Order"]
+        )
+    )
+
+    fig = px.area(
+        evolution,
+        x="Year",
+        y="Funding_Billions",
+        color="Funding_Round",
+        markers=False,
+        color_discrete_sequence=qualitative_palette,
+        labels={
+            "Year": "Ano",
+            "Funding_Billions":
+                "Capital captado (US$ Bilhões)",
+            "Funding_Round": "Rodada",
+        },
+    )
+
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>%{fullData.name}"
+            "<br>US$ %{y:.1f} bilhões"
+            "<extra></extra>"
+        )
+    )
+
+    return fig
+
+###############
+def create_capital_evolution_chart(df):
+    """
+    Evolução anual do capital captado.
+    """
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df.groupby("Year", as_index=False)["Funding_Amount_USD"]
+        .sum()
+        .sort_values("Year")
+    )
+
+    dados["Capital_B"] = (
+        dados["Funding_Amount_USD"] / 1e9
+    )
+
+    fig = px.line(
+        dados,
+        x="Year",
+        y="Capital_B",
+        markers=True,
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#F43F5E",
+            width=3,
+        ),
+        marker=dict(
+            color="#F43F5E",
+            size=7,
+        ),
+        fill="tozeroy",
+        fillcolor="rgba(244,63,94,0.12)",
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>Capital: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(
+        title_text="Ano",
+        dtick=1,
+    )
+
+    fig.update_yaxes(
+        title_text="Capital captado (US$ bi)",
+    )
+
+    return fig
+
+
+def create_rounds_evolution_chart(df):
+    """
+    Evolução anual do volume de investimentos.
+    Usa a quantidade de registros por ano,
+    pois Funding_Round não está disponível no dataframe filtrado.
+    """
+    if df.empty:
+        return empty_figure()
+    dados = (
+        df.groupby("Year")
+        .size()
+        .reset_index(name="Rounds")
+        .sort_values("Year")
+    )
+
+    fig = px.bar(
+        dados,
+        x="Year",
+        y="Rounds",
+    )
+
+    # Gradiente visual dentro da família ROSE
+    valores = dados["Rounds"].tolist()
+
+    if len(valores) > 1 and max(valores) != min(valores):
+        normalizados = [
+            (v - min(valores)) / (max(valores) - min(valores))
+            for v in valores
+        ]
+    else:
+        normalizados = [0.6] * len(valores)
+
+    escala = [
+        "#4C1025",
+        "#6B1735",
+        "#881C42",
+        "#A51F49",
+        "#BE123C",
+        "#E11D48",
+        "#F43F5E",
+    ]
+
+    cores = [
+        escala[
+            min(
+                int(n * (len(escala) - 1)),
+                len(escala) - 1,
+            )
+        ]
+        for n in normalizados
+    ]
+
+    fig.update_traces(
+        marker=dict(
+            color=cores,
+            line=dict(
+                color="rgba(255,255,255,.08)",
+                width=1,
+            ),
+        ),
+        opacity=0.94,
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>Rodadas: %{y:,.0f}"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        hovermode="x",
+    )
+
+    fig.update_xaxes(
+        title_text="Ano",
+        dtick=1,
+    )
+
+    fig.update_yaxes(
+        title_text="Número de rodadas",
+    )
+
+    return fig
+
+
+def create_average_ticket_by_round_chart(df):
+    """
+    Ticket médio de investimento por ano.
+    Usa Funding_Amount_USD, disponível no dataframe filtrado.
+    """
+    if df.empty:
+        return empty_figure()
+    dados = (
+        df.groupby("Year", as_index=False)["Funding_Amount_USD"]
+        .mean()
+        .sort_values("Year")
+    )
+
+    fig = px.bar(
+        dados,
+        x="Year",
+        y="Funding_Amount_USD",
+    )
+
+    valores = dados["Funding_Amount_USD"].tolist()
+
+    if len(valores) > 1 and max(valores) != min(valores):
+        normalizados = [
+            (v - min(valores)) / (max(valores) - min(valores))
+            for v in valores
+        ]
+    else:
+        normalizados = [0.6] * len(valores)
+
+    escala = [
+        "#4C1025",
+        "#6B1735",
+        "#881C42",
+        "#A51F49",
+        "#BE123C",
+        "#E11D48",
+        "#F43F5E",
+    ]
+
+    cores = [
+        escala[
+            min(
+                int(n * (len(escala) - 1)),
+                len(escala) - 1,
+            )
+        ]
+        for n in normalizados
+    ]
+
+    fig.update_traces(
+        marker=dict(
+            color=cores,
+            line=dict(
+                color="rgba(255,255,255,.08)",
+                width=1,
+            ),
+        ),
+        opacity=0.94,
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>Ticket médio: $%{y:,.0f}"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        hovermode="x",
+    )
+
+    fig.update_xaxes(
+        title_text="Ano",
+        dtick=1,
+    )
+
+    fig.update_yaxes(
+        title_text="Ticket médio (USD)",
+        tickformat="~s",
+    )
+
+    return fig
+
+
+def create_growth_evolution_chart(df):
+    """
+    Evolução anual do crescimento do capital captado.
+
+    O crescimento é calculado diretamente a partir
+    do funding agregado por ano, evitando dependência
+    da coluna Annual_Growth_Rate.
+    """
+    if df.empty:
+        return empty_figure()
+    dados = (
+        df.groupby(
+            "Year",
+            as_index=False,
+        )["Funding_Amount_USD"]
+        .sum()
+        .sort_values("Year")
+    )
+
+    dados["Growth_Pct"] = (
+        dados["Funding_Amount_USD"]
+        .pct_change()
+        .replace(
+            [float("inf"), -float("inf")],
+            float("nan"),
+        )
+        * 100
+    )
+
+    dados = dados.dropna(
+        subset=["Growth_Pct"]
+    )
+
+    fig = px.line(
+        dados,
+        x="Year",
+        y="Growth_Pct",
+        markers=True,
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#BE123C",
+            width=3,
+        ),
+        marker=dict(
+            color="#F43F5E",
+            size=7,
+        ),
+        hovertemplate=(
+            "<b>%{x}</b>"
+            "<br>Crescimento: %{y:.1f}%"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.add_hline(
+        y=0,
+        line_dash="dash",
+        line_color="rgba(148,163,184,.35)",
+        line_width=1,
+    )
+
+    fig.update_layout(
+        showlegend=False,
+        hovermode="x unified",
+    )
+
+    fig.update_xaxes(
+        title_text="Ano",
+        dtick=1,
+    )
+
+    fig.update_yaxes(
+        title_text="Crescimento do capital (%)",
+    )
+
+    return fig
+
+    def create_average_valuation_by_industry_chart(df):
+        if df.empty:
+            return empty_figure()
+
+        dados = (
+            df[["Industry", "Valuation_USD"]]
+            .dropna()
+            .groupby("Industry", as_index=False)["Valuation_USD"]
+            .mean()
+        )
+
+        if dados.empty:
+            return empty_figure()
+
+        dados["Average_Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+        dados = (
+            dados
+            .sort_values("Average_Valuation_B", ascending=False)
+            .head(10)
+            .sort_values("Average_Valuation_B", ascending=True)
+        )
+
+        fig = px.bar(
+            dados,
+            x="Average_Valuation_B",
+            y="Industry",
+            orientation="h",
+            color="Average_Valuation_B",
+            color_continuous_scale=[
+                "#5C2D05",
+                "#7C3F08",
+                "#92400E",
+                "#B45309",
+                "#D97706",
+                "#F59E0B",
+            ],
+            labels={
+                "Average_Valuation_B": "Valuation Médio (US$ bi)",
+                "Industry": "Indústria",
+            },
+        )
+
+        fig.update_traces(
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "Valuation médio: US$ %{x:.2f} bi"
+                "<extra></extra>"
+            )
+        )
+
+        fig.update_coloraxes(showscale=False)
+
+        return fig
+
+
+def create_valuation_vs_investment_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[
+            [
+                "Funding_Amount_USD",
+                "Valuation_USD",
+                "Industry",
+                "Country",
+            ]
+        ]
+        .dropna()
+        .copy()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Funding_B"] = dados["Funding_Amount_USD"] / 1e9
+    dados["Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    # Evita sobrecarregar o gráfico com muitos pontos.
+    if len(dados) > 10000:
+        dados = dados.sample(10000, random_state=42)
+
+    fig = px.scatter(
+        dados,
+        x="Funding_B",
+        y="Valuation_B",
+        hover_data=["Industry", "Country"],
+        render_mode="webgl",
+        labels={
+            "Funding_B": "Investimento Captado (US$ bi)",
+            "Valuation_B": "Valuation (US$ bi)",
+            "Industry": "Indústria",
+            "Country": "País",
+        },
+    )
+
+    fig.update_traces(
+        marker=dict(
+            color="#F59E0B",
+            size=6,
+            opacity=0.55,
+        ),
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "País: %{customdata[1]}<br>"
+            "Investimento: US$ %{x:.2f} bi<br>"
+            "Valuation: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_valuation_evolution_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Year", "Valuation_USD"]]
+        .dropna()
+        .groupby("Year", as_index=False)["Valuation_USD"]
+        .mean()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Average_Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    fig = px.line(
+        dados,
+        x="Year",
+        y="Average_Valuation_B",
+        markers=True,
+        labels={
+            "Year": "Ano",
+            "Average_Valuation_B": "Valuation Médio (US$ bi)",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#F59E0B",
+            width=3,
+        ),
+        marker=dict(
+            color="#FBBF24",
+            size=7,
+        ),
+        hovertemplate=(
+            "Ano: %{x}<br>"
+            "Valuation médio: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+def create_average_valuation_by_industry_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Industry", "Valuation_USD"]]
+        .dropna()
+        .groupby("Industry", as_index=False)["Valuation_USD"]
+        .mean()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Average_Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    dados = (
+        dados
+        .sort_values("Average_Valuation_B", ascending=False)
+        .head(10)
+        .sort_values("Average_Valuation_B", ascending=True)
+    )
+
+    fig = px.bar(
+        dados,
+        x="Average_Valuation_B",
+        y="Industry",
+        orientation="h",
+        color="Average_Valuation_B",
+        color_continuous_scale=[
+            "#261705",
+            "#3D2508",
+            "#563508",
+            "#704509",
+            "#8A550A",
+            "#A66A10",
+            "#C1841B",
+        ],
+        labels={
+            "Average_Valuation_B": "Valuation Médio (US$ bi)",
+            "Industry": "Indústria",
+        },
+    )
+
+    fig.update_traces(
+        marker_line_width=0,
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Valuation médio: US$ %{x:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_coloraxes(showscale=False)
+
+    return fig
+
+
+def create_valuation_vs_investment_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[
+            [
+                "Funding_Amount_USD",
+                "Valuation_USD",
+                "Industry",
+                "Country",
+            ]
+        ]
+        .dropna()
+        .copy()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Funding_B"] = dados["Funding_Amount_USD"] / 1e9
+    dados["Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    if len(dados) > 10000:
+        dados = dados.sample(10000, random_state=42)
+
+    fig = px.scatter(
+        dados,
+        x="Funding_B",
+        y="Valuation_B",
+        hover_data=["Industry", "Country"],
+        render_mode="webgl",
+        labels={
+            "Funding_B": "Investimento Captado (US$ bi)",
+            "Valuation_B": "Valuation (US$ bi)",
+        },
+    )
+
+    fig.update_traces(
+        marker=dict(
+            color="#9A620D",
+            size=5,
+            opacity=0.42,
+        ),
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "País: %{customdata[1]}<br>"
+            "Investimento: US$ %{x:.2f} bi<br>"
+            "Valuation: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_valuation_evolution_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Year", "Valuation_USD"]]
+        .dropna()
+        .groupby("Year", as_index=False)["Valuation_USD"]
+        .mean()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Average_Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    fig = px.line(
+        dados,
+        x="Year",
+        y="Average_Valuation_B",
+        markers=True,
+        labels={
+            "Year": "Ano",
+            "Average_Valuation_B": "Valuation Médio (US$ bi)",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#B77912",
+            width=2.5,
+        ),
+        marker=dict(
+            color="#C1841B",
+            size=6,
+        ),
+        hovertemplate=(
+            "Ano: %{x}<br>"
+            "Valuation médio: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+def create_unicorns_by_industry_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Industry", "Unicorn_Flag"]]
+        .dropna()
+        .groupby("Industry", as_index=False)["Unicorn_Flag"]
+        .sum()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados = (
+        dados
+        .rename(columns={"Unicorn_Flag": "Unicorns"})
+        .sort_values("Unicorns", ascending=True)
+        .tail(10)
+    )
+
+    fig = px.bar(
+        dados,
+        x="Unicorns",
+        y="Industry",
+        orientation="h",
+        color="Unicorns",
+        color_continuous_scale=[
+            "#211334",
+            "#35204F",
+            "#4C2870",
+            "#62359A",
+            "#7046B8",
+            "#7C3AED",
+        ],
+        labels={
+            "Unicorns": "Quantidade de Unicórnios",
+            "Industry": "Indústria",
+        },
+    )
+
+    fig.update_traces(
+        marker_line_width=0,
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Unicórnios: %{x:,}"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_coloraxes(showscale=False)
+
+    return fig
+
+
+def create_unicorn_valuation_boxplot(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[
+            [
+                "Valuation_USD",
+                "Unicorn_Flag",
+            ]
+        ]
+        .dropna()
+        .copy()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Tipo"] = dados["Unicorn_Flag"].map(
+        {
+            0: "Não Unicórnio",
+            1: "Unicórnio",
+        }
+    )
+
+    dados = dados.dropna(subset=["Tipo"])
+
+    dados["Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    fig = px.box(
+        dados,
+        x="Tipo",
+        y="Valuation_B",
+        color="Tipo",
+        color_discrete_map={
+            "Não Unicórnio": "#4A3A5E",
+            "Unicórnio": "#8B5CF6",
+        },
+        labels={
+            "Tipo": "",
+            "Valuation_B": "Valuation (US$ bi)",
+        },
+        points=False,
+    )
+
+    fig.update_traces(
+        line=dict(width=1.4),
+        fillcolor="rgba(139,92,246,0.16)",
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "Valuation: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_unicorn_funding_valuation_scatter(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[
+            [
+                "Funding_Amount_USD",
+                "Valuation_USD",
+                "Unicorn_Flag",
+                "Industry",
+                "Country",
+            ]
+        ]
+        .dropna()
+        .copy()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados["Tipo"] = dados["Unicorn_Flag"].map(
+        {
+            0: "Não Unicórnio",
+            1: "Unicórnio",
+        }
+    )
+
+    dados = dados.dropna(subset=["Tipo"])
+
+    dados["Funding_B"] = dados["Funding_Amount_USD"] / 1e9
+    dados["Valuation_B"] = dados["Valuation_USD"] / 1e9
+
+    if len(dados) > 10000:
+        dados = dados.sample(10000, random_state=42)
+
+    fig = px.scatter(
+        dados,
+        x="Funding_B",
+        y="Valuation_B",
+        color="Tipo",
+        hover_data=["Industry", "Country"],
+        render_mode="webgl",
+        color_discrete_map={
+            "Não Unicórnio": "#4A3A5E",
+            "Unicórnio": "#8B5CF6",
+        },
+        labels={
+            "Funding_B": "Investimento Captado (US$ bi)",
+            "Valuation_B": "Valuation (US$ bi)",
+            "Tipo": "",
+        },
+    )
+
+    fig.update_traces(
+        marker=dict(
+            size=5,
+            opacity=0.42,
+        ),
+        hovertemplate=(
+            "<b>%{customdata[0]}</b><br>"
+            "País: %{customdata[1]}<br>"
+            "Investimento: US$ %{x:.2f} bi<br>"
+            "Valuation: US$ %{y:.2f} bi"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+
+def create_unicorn_evolution_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Year", "Unicorn_Flag"]]
+        .dropna()
+        .groupby("Year", as_index=False)["Unicorn_Flag"]
+        .sum()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados = dados.rename(
+        columns={
+            "Unicorn_Flag": "Unicorns",
+        }
+    )
+
+    fig = px.line(
+        dados,
+        x="Year",
+        y="Unicorns",
+        markers=True,
+        labels={
+            "Year": "Ano",
+            "Unicorns": "Quantidade de Unicórnios",
+        },
+    )
+
+    fig.update_traces(
+        line=dict(
+            color="#7651B8",
+            width=2.5,
+        ),
+        marker=dict(
+            color="#8B5CF6",
+            size=6,
+        ),
+        hovertemplate=(
+            "Ano: %{x}<br>"
+            "Unicórnios: %{y:,}"
+            "<extra></extra>"
+        ),
+    )
+
+    return fig
+
+def create_unicorns_by_country_chart(df):
+    if df.empty:
+        return empty_figure()
+
+    dados = (
+        df[["Country", "Unicorn_Flag"]]
+        .dropna()
+        .groupby("Country", as_index=False)["Unicorn_Flag"]
+        .sum()
+    )
+
+    if dados.empty:
+        return empty_figure()
+
+    dados = (
+        dados
+        .rename(columns={"Unicorn_Flag": "Unicorns"})
+        .sort_values("Unicorns", ascending=True)
+        .tail(10)
+    )
+
+    fig = px.bar(
+        dados,
+        x="Unicorns",
+        y="Country",
+        orientation="h",
+        color="Unicorns",
+        color_continuous_scale=[
+            "#211334",
+            "#35204F",
+            "#4C2870",
+            "#5B3288",
+            "#6940A0",
+            "#7651B8",
+            "#8B5CF6",
+        ],
+        labels={
+            "Unicorns": "Quantidade de Unicórnios",
+            "Country": "País",
+        },
+    )
+
+    fig.update_traces(
+        marker_line_width=0,
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Unicórnios: %{x:,}"
+            "<extra></extra>"
+        ),
+    )
+
+    fig.update_coloraxes(showscale=False)
 
     return fig

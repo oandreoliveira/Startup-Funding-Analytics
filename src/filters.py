@@ -7,7 +7,7 @@ def render_filters(df):
             "assets/Logo.png",
             use_container_width=True,
         )
-
+       
         st.markdown("---")
         st.header("Filtros")
 
@@ -66,6 +66,7 @@ def render_filters(df):
         metrica_ranking,
     )
 
+
 def apply_filters(
     df,
     pais_selecionado,
@@ -82,7 +83,9 @@ def apply_filters(
 
     if industria_selecionada:
         df_filtrado = df_filtrado[
-            df_filtrado["Industry"].isin(industria_selecionada)
+            df_filtrado["Industry"].isin(
+                industria_selecionada
+            )
         ]
     else:
         df_filtrado = df_filtrado.iloc[0:0]
